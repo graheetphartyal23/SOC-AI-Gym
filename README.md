@@ -1,11 +1,9 @@
 ---
-title: SOC AI Gym
-emoji: 🤖
-colorFrom: blue
-colorTo: green
+title: Soc Ai Gym
+emoji: 🏆
+colorFrom: indigo
+colorTo: yellow
 sdk: docker
-sdk_version: "4.36.1"
-app_file: app.py
 pinned: false
 ---
 
