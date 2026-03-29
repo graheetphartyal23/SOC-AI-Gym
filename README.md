@@ -1,3 +1,14 @@
+---
+title: SOC AI Gym
+emoji: 🤖
+colorFrom: blue
+colorTo: green
+sdk: docker
+sdk_version: "4.36.1"
+app_file: app.py
+pinned: false
+---
+
 # SOC AI Gym: Reinforcement Learning for Cyber Incident Response
 
 **SOC AI Gym** is an [OpenEnv](https://github.com/meta-pytorch/OpenEnv)-style environment that simulates a Security Operations Center (SOC). Agents consume structured observations (logs, users, alerts, IP-related context) and issue analyst actions: investigate, block IPs, disable users, acknowledge alerts, and stop exfiltration.
