@@ -18,7 +18,10 @@ from openai import OpenAI
 from server.actions import Action, ActionType
 from server.constants import MAX_STEPS
 
-GYM_URL = os.environ.get("API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+GYM_URL = os.environ.get("API_BASE_URL")
+if not GYM_URL:
+    raise ValueError("API_BASE_URL must be set")
+GYM_URL = GYM_URL.rstrip("/")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
