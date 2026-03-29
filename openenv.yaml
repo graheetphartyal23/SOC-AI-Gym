@@ -1,0 +1,61 @@
+# OpenEnv-style environment manifest — SOC AI Gym
+schema_version: "1.0"
+
+environment:
+  name: soc_ai_gym
+  display_name: "SOC AI Gym: Reinforcement Learning for Cyber Incident Response"
+  version: "1.0.0"
+  description: >
+    Enterprise-style SOC simulation with logs, users, IPs, and three graded
+    incident-response tasks (brute force, suspicious login, multi-stage attack).
+  license: "MIT"
+
+runtime:
+  language: python
+  python: ">=3.10"
+  entrypoint: "uvicorn server.app:app --host 0.0.0.0 --port 8000"
+  max_steps_per_episode: 8
+
+api:
+  protocol: http
+  host: 0.0.0.0
+  port: 8000
+  endpoints:
+    - path: /
+      method: GET
+      description: Landing page (HTML demo UI).
+    - path: /reset
+      method: POST
+      description: Start an episode for task easy|medium|hard; returns Observation.
+    - path: /step
+      method: POST
+      description: Apply Action; returns observation, reward, done, info.
+    - path: /state
+      method: GET
+      description: Internal simulation state snapshot.
+    - path: /tasks
+      method: GET
+      description: Task descriptions and recommended action names; JSON schema for agents.
+    - path: /grader
+      method: GET
+      description: Deterministic 0.0–1.0 score for the current episode state.
+    - path: /baseline
+      method: GET
+      description: Rule-based policy; returns grader scores {easy, medium, hard}.
+
+models:
+  observation: "server.environment.Observation"
+  action: "server.actions.Action"
+  reward: "server.reward.Reward"
+
+tasks:
+  - id: easy
+    name: Brute Force Attack
+  - id: medium
+    name: Suspicious Login
+  - id: hard
+    name: Multi-stage Attack
+
+resources:
+  cpu: 2
+  memory_gb: 8
