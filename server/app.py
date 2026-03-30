@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import HTMLResponse
@@ -205,12 +205,11 @@ def landing_page() -> str:
 
 @app.post(
     "/reset",
-    response_model=Observation,
     tags=["Environment"],
     summary="Start episode",
 )
 def reset(
-    body: Annotated[
+    body: Optional[Annotated[
         ResetBody,
         Body(
             openapi_examples={
@@ -223,13 +222,22 @@ def reset(
                 "hard": {"summary": "Multi-stage attack", "value": {"task": "hard"}},
             },
         ),
-    ],
-) -> Observation:
+    ]] = None,
+):
     """Initialize a new episode for the given task id."""
-    t = body.task.lower().strip()
+
+    # ✅ Handle both cases (WITH and WITHOUT body)
+    if body is None:
+        t = "easy"
+    else:
+        t = body.task.lower().strip()
+
     if t not in ("easy", "medium", "hard"):
         raise HTTPException(400, "task must be easy, medium, or hard")
-    return _env.reset(t)
+
+    obs = _env.reset(t)
+
+    return obs.model_dump()
 
 
 @app.post(
@@ -355,4 +363,4 @@ def baseline() -> dict[str, float]:
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("server.app:app", host="0.0.0.0", port=7860)
