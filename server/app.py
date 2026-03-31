@@ -209,20 +209,18 @@ def landing_page() -> str:
     summary="Start episode",
 )
 def reset(
-    body: Optional[Annotated[
-        ResetBody,
-        Body(
-            openapi_examples={
-                "easy": {
-                    "summary": "Brute-force scenario",
-                    "description": "Reset the gym into the easy (brute force) task.",
-                    "value": {"task": "easy"},
-                },
-                "medium": {"summary": "Suspicious login", "value": {"task": "medium"}},
-                "hard": {"summary": "Multi-stage attack", "value": {"task": "hard"}},
+    body: Optional[dict[str, Any]] = Body(
+        default=None,
+        openapi_examples={
+            "easy": {
+                "summary": "Brute-force scenario",
+                "description": "Reset the gym into the easy (brute force) task.",
+                "value": {"task": "easy"},
             },
-        ),
-    ]] = None,
+            "medium": {"summary": "Suspicious login", "value": {"task": "medium"}},
+            "hard": {"summary": "Multi-stage attack", "value": {"task": "hard"}},
+        },
+    ),
 ):
     """Initialize a new episode for the given task id."""
 
@@ -230,7 +228,11 @@ def reset(
     if body is None:
         t = "easy"
     else:
-        t = body.task.lower().strip()
+        try:
+            parsed = ResetBody.model_validate(body)
+            t = parsed.task.lower().strip()
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(400, f"invalid reset payload: {exc}") from exc
 
     if t not in ("easy", "medium", "hard"):
         raise HTTPException(400, "task must be easy, medium, or hard")

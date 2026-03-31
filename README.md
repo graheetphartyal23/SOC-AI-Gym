@@ -1,172 +1,173 @@
 ---
-title: Soc Ai Gym
-emoji: 🏆
+title: SOC AI Gym
+emoji: 🛡️
 colorFrom: indigo
-colorTo: yellow
+colorTo: blue
 sdk: docker
+app_port: 7860
 pinned: false
 ---
 
-# SOC AI Gym: Reinforcement Learning for Cyber Incident Response
+# SOC AI Gym
+## Reinforcement Learning for Cyber Incident Response
 
-**SOC AI Gym** is an [OpenEnv](https://github.com/meta-pytorch/OpenEnv)-style environment that simulates a Security Operations Center (SOC). Agents consume structured observations (logs, users, alerts, IP-related context) and issue analyst actions: investigate, block IPs, disable users, acknowledge alerts, and stop exfiltration.
+SOC AI Gym is a production-style cyber incident response benchmark that combines:
+
+- an OpenEnv-compliant FastAPI environment,
+- deterministic grading and reward shaping,
+- and an LLM-driven training/demo loop with Hugging Face inference.
+
+It is designed for hackathon judging: clear scenarios, explainable logs, reproducible scoring, and demo-ready UI.
 
 ---
 
-## Problem motivation
+## Why This Project Matters
 
-Enterprise SOCs drown in authentication, API, and network telemetry. Analysts follow **detect → investigate → respond**, but training autonomous policies safely requires a **deterministic, repeatable** world model—not production traffic. SOC AI Gym provides three graded scenarios (brute force, suspicious login, multi-stage attack) with explicit graders, shaped rewards (including time pressure and safety penalties for harming legitimate users or “safe” IPs), and a **polished FastAPI** surface for demos and hackathons.
+Real SOC teams need analysts (human or AI) to make fast, safe decisions under pressure:
+
+1. **Detect** suspicious behavior
+2. **Investigate** context (alerts, users, IPs, logs)
+3. **Respond** with the least risky containment action
+
+SOC AI Gym turns that workflow into a deterministic testbed for evaluating agent quality, learning behavior, and safety under constrained budgets.
 
 ---
 
-## Architecture
-
-High-level data flow from policy to grade:
+## System Architecture
 
 ```mermaid
 flowchart LR
-  A[Agent / LLM] -->|Action JSON| E[SOCEnvironment]
-  E -->|Observation| A
-  E -->|state transition| R[Reward module]
-  R -->|scalar + components| A
-  E -->|terminal state| G[Grader]
-  G -->|score 0..1| A
+  LLM[LLM Policy] -->|Action| ENV[SOCEnvironment]
+  ENV -->|Observation| LLM
+  ENV --> REW[Reward Engine]
+  ENV --> GRD[Deterministic Grader]
+  REW -->|step reward| LLM
+  GRD -->|episode score 0..1| UI[Gradio Demo + Logs]
 ```
 
-- **Environment** applies actions (with **smart defaults** when `target` is empty), updates logs/users/alerts flags, and enforces **`MAX_STEPS = 8`**.
-- **Reward** combines step quality, workflow shaping, efficiency, **time penalty** (`-0.05 × step_count` per step), **limit penalty** (`-1.0` if the episode ends on the step cap without full success), and **safety** penalties (e.g. wrong disable / wrong block).
-- **Grader** remains deterministic and unchanged in spirit: easy / medium / hard rubrics in `[0.0, 1.0]`.
+### Core components
+
+- **`server/environment.py`**: episode state transitions (`reset`, `step`, `state`)
+- **`server/reward.py`**: multi-layer shaping with penalties and efficiency
+- **`server/grader.py`**: deterministic objective score in `[0.0, 1.0]`
+- **`inference.py`**: Hugging Face LLM loop, feedback memory, robust parsing/fallback
+- **`app.py`**: professional Gradio demo UI for judge-facing runs
 
 ---
 
-## Features
+## Task Suite
 
-- **Typed Pydantic models**: `Observation`, `Action`, `Reward` (extended with `time_penalty`, `limit_penalty`)
-- **HTTP API**: `POST /reset`, `POST /step`, `GET /state`, `GET /tasks`, `GET|POST /grader`, `GET /baseline`
-- **Landing page** at `/` (dark theme, links to docs, baseline, tasks)
-- **Three tasks** with deterministic graders
-- **`inference.py`** LLM loop aligned with server step limit
-
----
-
-## Tasks
-
-| Id | Description (API `/tasks`) |
-|----|------------------------------|
-| **easy** | Detect and block brute-force attack |
-| **medium** | Investigate suspicious login and disable compromised user |
-| **hard** | Stop multi-stage attack including data exfiltration |
-
-Graders (details unchanged from prior design): easy emphasizes blocking the attacker IP; medium splits investigation + correct disable; hard averages IP block, compromised-user disable, and exfiltration stopped.
+| Task | Scenario | Success Objective |
+|---|---|---|
+| **easy** | Brute force login attack | Detect and block attacker IP |
+| **medium** | Suspicious geo login + sensitive access | Investigate and disable compromised user |
+| **hard** | Phishing -> compromise -> exfiltration | Block IP, disable user, stop exfiltration |
 
 ---
 
-## Action space
+## API Endpoints
 
-Smart defaults: omitting `target` lets the server pick the primary alert, attacker IP / alert IP, or `related_user` where applicable.
-
-| `action_type` | `target` (optional) |
-|---------------|------------------------|
-| `investigate` | alert id, user id, or IP |
-| `block_ip` | IP (else attacker / alert IP) |
-| `disable_user` | user id (else alert `related_user`) |
-| `stop_exfiltration` | hard task only |
-| `acknowledge_alert` | alert id (else primary alert) |
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/reset` | Start scenario (`easy`/`medium`/`hard`) |
+| `POST` | `/step` | Submit action, get reward + next observation |
+| `GET` | `/state` | Current environment snapshot |
+| `GET` | `/tasks` | Task metadata |
+| `GET/POST` | `/grader` | Deterministic final score |
+| `GET` | `/baseline` | Built-in scripted benchmark |
 
 ---
 
-## Setup
+## Reward vs Grader (Important)
+
+- **Reward** can be positive or negative per step (mistakes are penalized).
+- **Grader** is final objective completion score in `[0, 1]`.
+
+For learning analysis:
+- Track **episode total reward** to see negative/positive behavior quality.
+- Track **grader score** to see objective completion.
+
+---
+
+## Quick Start (Local)
 
 ```bash
 cd soc_ai_gym
 python -m venv .venv
-.venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # Linux / macOS
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
----
-
-## Run the API server
+### Run backend
 
 ```bash
 uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
 
-- **UI**: open `http://127.0.0.1:8000/` for the landing page.
-- **Docs**: `http://127.0.0.1:8000/docs` (tagged: Environment, Actions, Evaluation).
-
-### Example HTTP calls
+### Run Gradio demo UI
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/reset -H "Content-Type: application/json" -d "{\"task\": \"easy\"}"
-curl -s -X POST http://127.0.0.1:8000/step -H "Content-Type: application/json" -d "{\"action_type\": \"investigate\"}"
-curl -s http://127.0.0.1:8000/baseline
+export API_BASE_URL=http://127.0.0.1:8000
+export HF_TOKEN=hf_xxx
+export OPENAI_BASE_URL=https://router.huggingface.co/v1
+export MODEL_NAME=Qwen/Qwen2.5-7B-Instruct
+python app.py
 ```
 
-**`/baseline`** returns:
-
-```json
-{"easy": 1.0, "medium": 1.0, "hard": 1.0}
-```
-
-**`/tasks`** returns task descriptions plus a short list of recommended action names.
+Open UI: `http://127.0.0.1:7860`
 
 ---
 
-## Run LLM inference (`inference.py`)
+## Hugging Face Deployment Notes
 
-| Variable | Purpose |
-|----------|---------|
-| `API_BASE_URL` | Gym base URL (default `http://127.0.0.1:8000`) |
-| `MODEL_NAME` | Chat model id |
-| `HF_TOKEN` / `OPENAI_API_KEY` | API key |
-| `OPENAI_BASE_URL` | OpenAI-compatible base (default official OpenAI) |
+### Required environment variables
 
-Example:
+- `HF_TOKEN` (required)
+- `OPENAI_BASE_URL=https://router.huggingface.co/v1`
+- `MODEL_NAME` (provider-supported model)
+- `API_BASE_URL` (if UI calls external backend)
 
-```powershell
-$env:HF_TOKEN = "sk-..."
-$env:MODEL_NAME = "gpt-4o-mini"
-python inference.py
-```
+### Common failure modes
 
-Sample output:
+1. **410 endpoint deprecated**
+   - Fix: use `router.huggingface.co`, not legacy `api-inference.huggingface.co`
+
+2. **model_not_supported**
+   - Fix: choose a model enabled for your HF provider/token
+
+3. **task mismatch**
+   - Ensure backend is restarted after code changes and that UI points to correct backend URL.
+
+---
+
+## Judge-Facing Demo Flow
+
+1. Run **Easy** to show workflow learning and stable completion.
+2. Run **Medium** to show user-centric containment behavior.
+3. Run **Hard** to demonstrate chained response capability.
+4. Highlight logs:
+   - raw LLM output
+   - chosen action
+   - reward
+   - episode score + grader
+
+---
+
+## Project Structure
 
 ```text
-=== SOC AI Evaluation ===
-Task easy → Score: 1.0
-Task medium → Score: 1.0
-Task hard → Score: 1.0
-```
-
-(Actual scores depend on the model and server state.)
-
----
-
-## Docker
-
-```bash
-docker build -t soc-ai-gym .
-docker run --rm -p 8000:8000 soc-ai-gym
-```
-
----
-
-## Project layout
-
-```
 soc_ai_gym/
 ├── server/
-│   ├── constants.py      # MAX_STEPS
+│   ├── app.py
 │   ├── environment.py
 │   ├── state.py
 │   ├── actions.py
 │   ├── attack_injector.py
 │   ├── reward.py
 │   ├── grader.py
-│   └── app.py
+│   └── constants.py
 ├── inference.py
+├── app.py
 ├── train.py
 ├── openenv.yaml
 ├── Dockerfile
@@ -178,4 +179,4 @@ soc_ai_gym/
 
 ## License
 
-Use and modify freely for research and prototyping.
+For research, prototyping, and educational use.
